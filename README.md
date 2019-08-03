@@ -1,4 +1,4 @@
-# pixel
+# pixel GUI
 A python module for graphical operations on images and videos
 
-Coming soon: the setup.py
+A GUI with tkinter
