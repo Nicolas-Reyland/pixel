@@ -1,25 +1,43 @@
 # look at images with pygame
-from PIL import Image
-import imageio, cv2, screeninfo, os, shutil, datetime
+from PIL import Image, ImageEnhance
+import imageio, cv2, screeninfo
 import scipy.misc as scm
 import numpy as np
 
 # own side-modules
 from c_functions import replace_color_in_image_by_image
+import video
 
 # ---- variables -----
+# my own shortcut-variables
+Hayao = '/root/Images/Hayao Miyazaki.jpg'
+hokusai = '/root/Images/Tsunami_by_hokusai_19th_century.jpg'
+source = video.Video('/root/Vidéos/intro bob lennon.avi')
+import os
+clear = lambda : os.system('clear')
+
+hay = lambda : cv2.cvtColor(imageio.imread(open(Hayao, 'rb')), cv2.COLOR_BGR2RGB)
+hoku = lambda : cv2.cvtColor(np.array(Image.fromarray(imageio.imread(open(hokusai, 'rb'))).resize(hay().shape[:-1][::-1])), cv2.COLOR_BGR2RGB)
+
+
+# the remaining
 rgb_color = {'black': (0, 0, 0), 'red': (190, 0, 0), 'light_red': (255, 0, 0), 'green': (34, 177, 76), 'light_green': (0, 255, 0), 'yellow': (190, 190, 0), 'light_yellow': (235, 235, 0), 'blue': (0, 0, 230), 'light_blue': (0, 160, 255), 'grey': (190, 190, 190), 'light_grey': (221, 221, 221), 'pink': (190, 0, 190), 'light_pink': (240, 0, 240), 'white': (255, 255, 255), 'very_light_grey': (255, 255, 255), 'dark_grey': (120, 120, 120), 'dark_red': (110, 0, 0), 'very_light_red': (255, 60, 60), 'dark_green': (10, 110, 20), 'dark_yellow': (110, 110, 0), 'very_light_yellow': (255, 255, 45), 'dark_pink': (120, 0, 120), 'very_light_pink': (255, 20, 255), 'very_light_green': (100, 255, 100), 'very_light_blue': (0, 255, 255), 'dark_blue': (0, 0, 180)}
 bgr_color = dict([(name, value[::-1]) for name, value in list(rgb_color.items())])
+from ascii_enc_dec import enc as encode_to_base
+rgb_to_hex = lambda rgb: '#' + ''.join([x + (2 - len(x))*'0' for x in list(map(lambda r: encode_to_base(r,16),rgb))])
 
 # screen
-monitor = screeninfo.get_monitors()[0]
+try: monitor = screeninfo.get_monitors()[0]
+except IndexError: pass
 destroy_window_after_shown = True
+video.destroy_window_after_shown = destroy_window_after_shown
 
 # ----- Show & Destroy images -----
 # lambda functions
 destroy = lambda : cv2.destroyAllWindows()
 webcam_shot = lambda : cv2.VideoCapture(0).read()
 load = lambda path : imageio.imread(open(path, 'rb'))
+save = lambda array,path: Image.fromarray(array, mode='RGB').save(path, format='BMP')
 
 # show
 def showimage(img, ratio=1, size=('default', 'default'), auto_scale=False, change_color_channel=False, color_channel_function=cv2.COLOR_BGR2RGB, return_img=False, name='main'):
@@ -48,7 +66,7 @@ def showimage(img, ratio=1, size=('default', 'default'), auto_scale=False, chang
 
     # change image by ratio
     if ratio != 1:
-        img = resize(img, (int(img.shape[1]*ratio), int(img.shape[0]*ratio)))
+        img = resize(img, (int(img.shape[0]*ratio), int(img.shape[1]*ratio)))
     # change image by given size
     elif modify_size:
 
@@ -76,6 +94,9 @@ def showimage(img, ratio=1, size=('default', 'default'), auto_scale=False, chang
 # pixel match function
 pixel_match = lambda target, pixel, tolerance : all([abs(pixel[i] - target[i]) <= tolerance for i in range(len(pixel))])
 
+# grayscale an image
+grayscale = lambda array: cv2.cvtColor(array, cv2.COLOR_BGR2GRAY)
+
 # List of changes, applied one afther the other
 def easy_change(img, function_list, show_progress=False):
     for function in function_list:
@@ -99,17 +120,34 @@ def adapt_size(img, target_img):
     return img
 
 # brightness
-def brightness(img, ratio=1.1):
+def brightness(img, value):
+    img = np.int16(img)
+    img = np.add(img, value)
+    img = img.clip(0,255)
+    img = np.uint8(img)
+    return img
 
-    # brighten function
-    brighten = lambda pixel, ratio : np.array([v*ratio if v*ratio <= 255 else 255 for v in pixel])
+# saturation
+def saturation(img, value):
 
-    # go trhough all pixel (idk why it doesn't work in a one-line for-loop)
-    for x,column in enumerate(img):
-        for y,pixel in enumerate(column):
-            img[x][y] = brighten(pixel,ratio)#np.array([v*ratio if v*ratio <= 255 else 255 for v in pixel])
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(hsv)
+
+    if value > 0: v = np.where(v <= 255 - value, v + value, 255)
+    else: v = np.where(v >= abs(value), v - abs(value), 0)
+
+    final_hsv = cv2.merge((h,s,v))
+    img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
 
     return img
+
+# sharpness
+def sharpen(img, ratio=1):
+    kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+    kernel *= ratio
+    img = cv2.filter2D(img, -1, kernel)
+    return img
+
 
 # half vertical-, horizontal-partial (the best is u test them, coz it's pretty weird)
 horizontal_partial = lambda img: np.array([column if x % 2 else column[::-1] for x,column in enumerate(img)])
@@ -130,7 +168,7 @@ def diaporama(x):
 
 # ----- Object Detection -----
 # Object Detection
-def detect_object(img, scaleFactor=1.1, minNeighbors=5, minSize=(30,30), rectangle_color=(0,255,0), cascade_file_path='/root/git_clones/FaceDetect/haarcascade_frontalface_default.xml'):
+def detect_object(img, scaleFactor=1.1, minNeighbors=5, minSize=(30,30), rectangle_color=(0,255,0), cascade_file_path='/home/valar/git_clones/FaceDetect/haarcascade_frontalface_default.xml'):
 
     # define Cascade-Classifier
     faceCascade = cv2.CascadeClassifier(cascade_file_path)
@@ -154,7 +192,7 @@ def detect_object(img, scaleFactor=1.1, minNeighbors=5, minSize=(30,30), rectang
     return img
 
 # Webcam Object Detection
-def webcam_detect_object(return_last_frame=False, scaleFactor=1.1, minNeighbors=5, minSize=(30,30), rectangle_color=(0,255,0), cascade_file_path='/root/git_clones/FaceDetect/haarcascade_frontalface_default.xml'):
+def webcam_detect_object(return_last_frame=False, scaleFactor=1.1, minNeighbors=5, minSize=(30,30), rectangle_color=(0,255,0), cascade_file_path='/home/valar/git_clones/FaceDetect/haarcascade_frontalface_default.xml'):
 
     # define Cascade-Classifier
     faceCascade = cv2.CascadeClassifier(cascade_file_path)
@@ -193,219 +231,3 @@ def webcam_detect_object(return_last_frame=False, scaleFactor=1.1, minNeighbors=
     if destroy_window_after_shown: destroy()
 
     if return_last_frame: return frame
-
-
-class Video:
-
-    def __init__(self, source):
-        '''
-         --- docstring for "Video" ---
-
-        This class' purpose is video editing.
-        The main object will be a video file (self.source),
-        but you will interract with a copy of it,
-        which is located in the self.output.
-        To clean this tmp file, you can use the "clean" method.
-
-        Those are the available methods:
-         - clean: delete the temp file of your video editing
-         - update: save the changes that you have made to your source file
-         - show_tmp: visualize the 'working-on'-video
-         - show: visualize the video
-         - loop_show: visualize the video in a while loop, except you press "q"
-         - resize: resize the video by a given size
-         - edit: give a function which will edit every frame of the video
-         - get_frame_index_by_time: get the frame-index to cut by index
-         - cut_by_frame_index: cut the video by frame-index
-         - get_frame: get the n frame from the video
-
-        '''
-
-        # source & output files
-        self.source = source
-        self.output = os.path.join(os.getcwd(), 'tmp_video_file_{}.avi'.format(str(datetime.datetime.now()).replace(' ', '_')[:-1].split('.')[0]))
-
-        # Video Capture
-        self.capture = lambda : cv2.VideoCapture(self.source)
-
-        # info
-        self.get_resolution = lambda : (int(self.capture().get(cv2.CAP_PROP_FRAME_HEIGHT)), int(self.capture().get(cv2.CAP_PROP_FRAME_WIDTH)))
-        self.get_total_frames = lambda : self.capture().get(cv2.CAP_PROP_FRAME_COUNT)
-        self.get_fourcc = lambda : self.capture().get(cv2.CAP_PROP_FOURCC)
-
-    def clean(self):
-        # remove the temp file
-        try: os.remove(self.output)
-        except FileNotFoundError: print('Already clean')
-
-    def update(self):
-
-        # overwrite the tmp output file (if it exists)
-        # to the source file
-        if os.path.isfile(self.output):
-            shutil.copy(self.output, self.source)
-            os.rename(self.output, self.source)
-        else:
-            raise ValueError('There is no tmp file yet! You must first edit the video to be able save it')
-
-    # show the tmp-video. It stops by pressing 'q'
-    def show_tmp(self):
-
-        cap = cv2.VideoCapture(self.output)
-
-        while cap.isOpened():
-
-            ret, frame = cap.read()
-            if ret:
-                cv2.imshow('main', frame)
-
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    cap.release()
-                    cv2.destroyAllWindows()
-                    return True
-
-            else:
-                cap.release()
-                if destroy_window_after_shown: cv2.destroyAllWindows()
-                return False
-
-    # show the video. It stops by pressing 'q'
-    def show(self):
-
-        cap = self.capture()
-
-        while cap.isOpened():
-
-            ret, frame = cap.read()
-            if ret:
-                cv2.imshow('main', frame)
-
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    cap.release()
-                    cv2.destroyAllWindows()
-                    return True
-
-            else:
-                cap.release()
-                if destroy_window_after_shown: cv2.destroyAllWindows()
-                return False
-
-    def loop_show(self):
-
-        while True:
-            if self.show():
-                cap = self.capture()
-                while cap.isOpened():
-                    ret, frame = cap.read()
-                    if ret:
-                        cv2.imshow('main', frame)
-                        if cv2.waitKey(1) & 0xFF == ord('q'):
-                            cap.release()
-                            return True
-                    else:
-                        cap.release()
-                        return False
-
-    def resize(self, size, verbose=1, step=50): # DOESNT WORK YET
-        # use edit to resize the video
-        self.edit(lambda frame: cv2.resize(frame, size), verbose, step)
-
-    def edit(self, editation, verbose=0, step=50):
-        # the editation sould be a function (lambda is a good way),
-        # which has already all the wanted arguments in it
-
-        # capture
-        cap = self.capture()
-        length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        # outfile
-        out = cv2.VideoWriter(self.output, int(cap.get(cv2.CAP_PROP_FOURCC)), cap.get(cv2.CAP_PROP_FPS), (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
-
-        frame_counter = 0
-        # while still in the video
-        while cap.isOpened():
-
-            if verbose == 1 and frame_counter % step == 0:
-                print('Finished {} frames from total {}'.format(frame_counter, length))
-            frame_counter += 1
-
-            # get next frame
-            ret, frame = cap.read()
-
-            if ret:
-
-                # flip the frame
-                frame = editation(frame)
-
-                # write the flipped frame
-                out.write(frame)
-
-            else:
-                break
-
-        cap.release()
-
-    # get the frame index by a given second from the video
-    def get_frame_index_by_time(self, from_second, to_second):
-
-        FPS = self.capture().get(cv2.CAP_PROP_FPS)
-        return from_second * FPS, to_second * FPS
-
-    def cut_by_frame_index(self, from_index, to_index):
-
-        # capture
-        cap = self.capture()
-        # outfile
-        out = cv2.VideoWriter(self.output, int(cap.get(cv2.CAP_PROP_FOURCC)), cap.get(cv2.CAP_PROP_FPS), (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
-
-        if from_index < 0:
-            from_index += cap.get(cv2.CAP_PROP_FRAME_COUNT) # it's a negative number, so it'll decrease from the max
-        if to_index < 0:
-            to_index += cap.get(cv2.CAP_PROP_FRAME_COUNT)
-
-        frame_counter = 0
-        # while still in the video
-        while cap.isOpened():
-
-            # get next frame
-            ret, frame = cap.read()
-
-            if ret and frame_counter <= to_index:
-
-                if from_index <= frame_counter:
-
-                    # write the flipped frame
-                    out.write(frame)
-
-            else:
-                break
-
-            frame_counter += 1
-
-        cap.release()
-
-    # get the n frame of the video
-    def get_frame(self, frame_index):
-
-        # capture
-        cap = self.capture()
-
-        if frame_index < 0:
-            frame_index += cap.get(cv2.CAP_PROP_FRAME_COUNT)
-
-        # make sure the frame_index is in the frame-range of the video
-        assert frame_index < cap.get(cv2.CAP_PROP_FRAME_COUNT)
-
-        frame_counter = 0
-        # while still in the video
-        while cap.isOpened():
-
-            # get next frame
-            ret, frame = cap.read()
-
-            if ret and frame_counter == frame_index:
-
-                    return frame
-
-            frame_counter += 1
-
-        raise RuntimeError('An Error has occured: probably an early closing of the Video')
