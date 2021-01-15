@@ -1,11 +1,15 @@
 # look at images with pygame
+import sys
+sys.path.append('../../modules')
+
 from PIL import Image, ImageEnhance
 import imageio, cv2, screeninfo
 import scipy.misc as scm
 import numpy as np
 
 # own side-modules
-from c_functions import replace_color_in_image_by_image
+#from c_functions import replace_color_in_image_by_image
+from pixelf import replace_color_in_image_by_image
 import video
 
 # ---- variables -----
@@ -27,15 +31,17 @@ from ascii_enc_dec import enc as encode_to_base
 rgb_to_hex = lambda rgb: '#' + ''.join([x + (2 - len(x))*'0' for x in list(map(lambda r: encode_to_base(r,16),rgb))])
 
 # screen
-try: monitor = screeninfo.get_monitors()[0]
-except IndexError: pass
+#try: monitor = screeninfo.get_monitors()[0]
+#except Exception as monitor_exception: monitor = None
+monitor = None
+print('WARNING: due to WSL, screeninfo breaks the program, so some code has been commented out. please check!')
 destroy_window_after_shown = True
 video.destroy_window_after_shown = destroy_window_after_shown
 
 # ----- Show & Destroy images -----
 # lambda functions
 destroy = lambda : cv2.destroyAllWindows()
-webcam_shot = lambda : cv2.VideoCapture(0).read()
+webcam_shot = lambda index=0: cv2.VideoCapture(index).read()
 load = lambda path : imageio.imread(open(path, 'rb'))
 save = lambda array,path: Image.fromarray(array, mode='RGB').save(path, format='BMP')
 
@@ -57,6 +63,7 @@ def showimage(img, ratio=1, size=('default', 'default'), auto_scale=False, chang
     img_width, img_height = img.shape[1], img.shape[0] + 95
     if ratio == 1 and not modify_size and auto_scale:
         global monitor
+        if monitor is None: raise ValueError('monitor info gathering failed at script load. auto_scale impossible.')
         if img_width > monitor.width:
             ratio = monitor.width / img_width
             print('resize width')
