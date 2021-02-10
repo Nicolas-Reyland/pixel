@@ -26,6 +26,8 @@ class Video:
          - get_frame_index_by_time: get the frame-index to cut by index
          - cut_by_frame_index: cut the video by frame-index
          - get_frame: get the n frame from the video
+        
+        Included this in the GUI branch too
 
         '''
 
