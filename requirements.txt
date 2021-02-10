@@ -1,0 +1,19 @@
+### AUTOMATIC DEPENDENCIES SEARCH
+# own_utils -> not deployed yet
+opencv-python
+mingus
+screeninfo
+pygame
+setuptools
+svgwrite
+# matrix -> yeah, see https://github.com/Nicolas-Reyland/matrix
+sounddevice
+tkcolorpicker
+psutil
+scipy
+Cython
+numpy
+# ascii_enc_dec -> not deployed yet
+midiutil
+imageio
+pillow
