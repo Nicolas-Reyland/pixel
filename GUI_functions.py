@@ -15,7 +15,7 @@ def init_settings_values():
 	rciibi_tolerance_scale.set(settings.settings['rciibi tolerance'])
 
 	# '/mnt/c/Documents/git_clones/FaceDetect/haarcascade_frontalface_default.xml'
-	if not os.path.isfile(settings.settings['cascade file path']):
+	if settings.settings['cascade file path'] and not os.path.isfile(settings.settings['cascade file path']):
 		# settings.settings['cascade file path'] = '/Users/Nicolas/Documents/git_clone/FaceDetect/haarcascade_frontalface_default.xml'
 		# raise FileNotFoundError(settings.settings['cascade file path'])
 		messagebox.showwarning('Warning', 'The cascade file could not be found')
@@ -32,7 +32,7 @@ def update():
 	global last_updated_size
 	last_updated_size = (0,0)
 
-def change_current_image(arg):
+def change_current_image(arg) -> None:
 	global resolution_scale, last_opened
 
 	if arg == 'browse':
@@ -40,6 +40,8 @@ def change_current_image(arg):
 									initialdir=settings.settings['base path'],
 									title='Open Image'
 									)
+		if not filename: return
+
 		settings.settings['base path'] = filename.replace(os.path.basename(filename), '')
 		if filename[-4:] in ['.mp4', '.avi', '.mkv']:
 			global source, onvideo, cap
@@ -145,7 +147,7 @@ def rciibi(arg):
 			del message_frame_label
 
 			# destroy the zone
-			rciibi_zone.erase()
+			if image.active_zone: rciibi_zone.erase()
 
 		except IndexError:#NameError:
 			messagebox.showerror('Missing Parameters', 'Have you selected Image2 or the Color ?')

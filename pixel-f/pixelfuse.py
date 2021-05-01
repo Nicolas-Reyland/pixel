@@ -24,8 +24,8 @@ load_img = lambda path: imageio.imread(open(path, 'rb'))
 save_img = lambda array, path: Image.fromarray(array, mode='RGB').save(path, format='BMP')
 
 
-def main(return_img=True, compile_args='', run_args=''):
-	args = sys.argv[1:]
+def main(return_img=True, compile_args='', run_args='', args=None):
+	if args == None: args = sys.argv[1:]
 	assert len(args) == 5 # 3 for image-paths + 5 for params - 3 for PATHS = 8
 
 	# settings args
@@ -83,6 +83,8 @@ def main(return_img=True, compile_args='', run_args=''):
 
 	if resized != '':
 		os.remove(resized)
+
+	if return_img: return load_img(result_path)
 
 if __name__ == '__main__':
 	main(return_img=False, compile_args='-lm', run_args='')
